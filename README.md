@@ -2,31 +2,20 @@
 
 Herramienta profesional de monitoreo de precios en Chile con scraping **100% bajo demanda**.
 
-## 🚀 Características Finales
-- **Scraping Manual**: Pega cualquier URL de e-commerce y extrae datos en segundos.
-- **Geolocalización**: Escaneo de precios locales basado en tu GPS actual.
-- **Lógica On-Demand**: Sin recargas automáticas ni Cron Jobs. Tú decides cuándo trabajar.
-- **Rendimiento Senior**: Asyncio parallel scraping + Caché Redis (1h TTL).
-- **UI Premium**: Modo Oscuro, Skeletons y Responsive.
+## 🚀 Despliegue en Vercel (Paso a Paso)
 
-## 🛠️ Despliegue en Vercel
+1. Ve a [https://vercel.com/new](https://vercel.com/new)
+2. Pega la URL del repositorio de GitHub: `https://github.com/contactocerebragroup-arch/proyecto_farmacias.git`
+3. Haz clic en **Continuar** y en la sección **Environment Variables** agrega:
+   - `GEMINI_API_KEY`: Tu clave de Google AI Studio.
+   - `APP_API_KEY`: Tu clave secreta (GUID de 64 caracteres recomendado).
+   - `REDIS_URL`: Tu string de conexión de Upstash Redis (opcional para caché).
+   - `DATABASE_URL`: `sqlite:///prices.db` (para persistencia simple).
+4. Haz clic en **Deploy**.
+5. ¡Listo! Obtendrás tu URL live (ej: `https://proyecto-farmacias.vercel.app`).
 
-### 1. Variables de Entorno
-Agrega estas claves en Vercel Dashboard:
-- `GEMINI_API_KEY`: Tu clave de Google AI Studio.
-- `APP_API_KEY`: Tu secreto para el `X-API-Key`.
-- `REDIS_URL`: String de Upstash Redis.
-- `DATABASE_URL`: String de PostgreSQL (opcional).
-
-### 2. Upstash Redis Setup
-1. Crea una DB gratuita en [Upstash](https://upstash.com/).
-2. Copia la `REDIS_URL` para habilitar el caché de milisegundos.
-
-### 3. Lanzamiento
-1. Conecta este repositorio a Vercel.
-2. Despliega. La app detectará automáticamente el backend Python y frontend React.
-
-## 📱 Uso
-1. Selecciona pestaña **Manual** o **Geo**.
-2. Ingresa URL o solicita ubicación.
-3. Haz clic en el botón de acción y autoriza con tu `APP_API_KEY`.
+## 🛠️ Lógica Final
+- **Scraping Manual**: Pestaña "Manual" → Pega URL → Clica "Scrapear Ahora".
+- **Geolocalización**: Pestaña "Geo" → Clica "Scan Mi Zona" → Scrape de farmacias en Chile.
+- **Sin Automatización**: No hay Cron Jobs ni recargas automáticas. Tú controlas la ejecución.
+- **Seguridad**: Header `X-API-Key` obligatorio para disparar extracciones.
