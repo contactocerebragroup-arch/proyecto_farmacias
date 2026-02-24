@@ -51,6 +51,68 @@ def get_prices(
         "results": prices
     }
 
+@app.post("/api/scrape-url")
+@limiter.limit("5/minute")
+async def trigger_scrape_url(
+    request: Request, 
+    payload: dict, 
+    db: Session = Depends(db.get_db), 
+    api_key: str = Depends(security.get_api_key)
+):
+    """
+    Scrapes a specific URL provided in the payload.
+    """
+    target_url = payload.get("url")
+    if not target_url:
+        raise HTTPException(status_code=400, detail="URL is required")
+    
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        results = await scraper.fetch_manual_url(client, target_url)
+    
+    # Store results in background
+    for item in results:
+        entry = models.Price(
+            pharmacy="Manual",
+            product=item["product"],
+            price=item["price"],
+            stock=item["stock"],
+            url=item["url"]
+        )
+        db.add(entry)
+    db.commit()
+    
+    return {"status": "success", "results": results}
+
+@app.post("/api/scrape-geo")
+@limiter.limit("5/minute")
+async def trigger_scrape_geo(
+    request: Request, 
+    payload: dict, 
+    db: Session = Depends(db.get_db), 
+    api_key: str = Depends(security.get_api_key)
+):
+    """
+    Scrapes popular sites with geographic context.
+    """
+    lat = payload.get("lat")
+    lng = payload.get("lng")
+    
+    results = await scraper.scrape_geo_async(lat, lng)
+    
+    # Store results
+    for item in results:
+        entry = models.Price(
+            pharmacy=item["pharmacy"],
+            product=item["product"],
+            price=item["price"],
+            stock=item["stock"],
+            url=item["url"]
+        )
+        db.add(entry)
+    db.commit()
+    
+    return {"status": "success", "count": len(results)}
+
 @app.post("/api/scrape")
 @limiter.limit("5/minute")
 async def trigger_scrape(request: Request, db: Session = Depends(db.get_db), api_key: str = Depends(security.get_api_key)):

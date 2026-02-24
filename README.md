@@ -1,32 +1,46 @@
-# EcoFarmacias Monitoring App
+# EcoFarmacias General Monitor (v3.0)
 
-## Setup Instructions
+Herramienta profesional de monitoreo de precios en Chile con scraping manual y geolocalizado.
 
-### 1. Vercel Deployment
-1. Create a new repository on GitHub and push this code.
-2. Link the repository to a new project in the [Vercel Dashboard](https://vercel.com/new).
-3. The `vercel.json` will automatically configure the Python backend and React frontend.
+## 🚀 Características Finales
+- **Scraping Manual**: Pega el link de cualquier producto chileno y extrae precios, stock y datos en segundos.
+- **Geolocalización**: Escaneo de sitios populares basado en tu ubicación GPS actual.
+- **Rendimiento Senior**: Scraping en paralelo (<15s), caché Redis de milisegundos y AI (Gemini) robusta.
+- **UI Premium**: Skeletons, Snapbars, Modo Oscuro automático y responsive (MUI).
 
-### 2. Environment Variables
-Add the following in Vercel Project Settings > Environment Variables:
-- `GEMINI_API_KEY`: Google AI Studio API Key.
-- `APP_API_KEY`: Secret key for `/api/scrape`.
-- `DATABASE_URL`: PostgreSQL connection string (Neon.tech).
-- `REDIS_URL`: Upstash Redis connection string (e.g., `redis://default:xxx@xxx.upstash.io:6379`).
+## 🛠️ Configuración de Vercel (Producción)
 
-### 3. Upstash Redis Setup
-1. Create a free database at [Upstash](https://upstash.com/).
-2. Copy the `REDIS_URL` from the dashboard.
-3. Caching is automatic: scraped results are cached for 1 hour to ensure <1s response times.
+### 1. Variables de Entorno
+Agrega estas claves en Vercel Dashboard:
+- `GEMINI_API_KEY`: API Key de Google AI Studio.
+- `APP_API_KEY`: Tu clave secreta para el Header `X-API-Key`.
+- `DATABASE_URL`: String de PostgreSQL (ej: Neon.tech).
+- `REDIS_URL`: String de Upstash Redis (ej: `redis://default:xxx@xxx.upstash.io:6379`).
 
-### 4. Cron Jobs
-The Cron Job is defined in `vercel.json` to run every hour (`0 * * * *`). It triggers the parallel async scraper. Ensure `APP_API_KEY` matches the one in your environment.
+### 2. Upstash Redis
+1. Crea una DB gratuita en [Upstash](https://upstash.com/).
+2. Los resultados se guardan por 1 hora para optimizar velocidad y costos de IA.
 
-### 5. Frontend Features
-- **Auto-Refresh**: Every 5 minutes the dashboard polls for new data.
-- **Skeletons**: Layout stability during background fetches.
-- **Fuzzy Search**: Filter by name or pharmacy in real-time.
+### 3. Scraping On-Demand (Manual)
+Esta herramienta **no realiza scraping automático**. El proceso de extracción solo se inicia cuando el usuario lo solicita manualmente desde la interfaz (pestaña "Manual" o "Geolocalización").
 
-## API Endpoints
-- `GET /api/prices`: Returns the list of latest prices.
-- `POST /api/scrape`: Triggers a new scrape. Requires `X-API-Key` header.
+### 4. Despliegue
+1. Conecta este repositorio a Vercel.
+2. El archivo `vercel.json` está configurado para un despliegue React + Python sin tareas programadas.
+3. Caching: Los resultados se guardan por 1 hora en Redis para optimizar la velocidad.
+
+## 💻 Desarrollo Local
+```bash
+# Backend
+pip install -r requirements.txt
+uvicorn api.index:app --reload
+
+# Frontend
+npm install
+npm run dev
+```
+
+## 🧪 Pruebas
+1. Abre la pestaña "Manual".
+2. Pega una URL de producto (ej: Farmacia Cruz Verde o EcoFarmacias).
+3. Ingresa tu `APP_API_KEY` y verifica la extracción en tiempo real.

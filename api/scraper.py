@@ -91,19 +91,73 @@ async def fetch_with_retry(client, source, retries=3):
                 logger.error("All retries failed", source=source["name"])
                 return []
 
+async def fetch_manual_url(client, url, retries=3):
+    """
+    Fetches a specific URL provided by the user and extracts prices.
+    """
+    if cache:
+        cached_data = cache.get(f"manual:{url}")
+        if cached_data:
+            import json
+            return json.loads(cached_data)
+
+    for i in range(retries):
+        try:
+            headers = {
+                "User-Agent": USER_AGENTS[i % len(USER_AGENTS)],
+                "Accept-Language": "es-CL,es;q=0.9",
+            }
+            response = await client.get(url, headers=headers, timeout=12)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, "html.parser")
+            html_chunk = str(soup.body)[:28000]
+            
+            extracted = parse_prices_with_ai(html_chunk)
+            
+            results = []
+            for item in extracted:
+                name = item.get("producto", "").strip()
+                price = item.get("precio", 0)
+                if name and price > 0:
+                    results.append({
+                        "pharmacy": "Manual Scraped",
+                        "product": name,
+                        "price": float(price),
+                        "stock": str(item.get("stock", "N/A")),
+                        "url": url,
+                    })
+            
+            if cache and results:
+                import json
+                cache.setex(f"manual:{url}", 3600, json.dumps(results))
+                
+            return results
+        except Exception as e:
+            await asyncio.sleep(2 ** i)
+    return []
+
+async def scrape_geo_async(lat, lon):
+    """
+    Scrapes popular retail sites with geolocalized context.
+    For this MVP, we use our current sources but could expand.
+    """
+    logger.info("Scraping with geo context", lat=lat, lon=lon)
+    # We could use lat/lon to decide which local sites to scrape
+    # For now, we reuse the parallel scraper but could add geo-specific headers
+    return await scrape_all_async()
+
 async def scrape_all_async():
     """
     Runs all scrapers in parallel using asyncio.
-    Target time < 15s.
     """
     async with httpx.AsyncClient(follow_redirects=True) as client:
         tasks = [fetch_with_retry(client, source) for source in SOURCES]
         results_nested = await asyncio.gather(*tasks)
         
-        # Flatten and deduplicate
         all_results = [item for sublist in results_nested for item in sublist]
         
-        # Deduplication based on product name and pharmacy
+        # Deduplication and Sorting
         seen = set()
         unique_results = []
         for res in all_results:
@@ -112,7 +166,5 @@ async def scrape_all_async():
                 seen.add(key)
                 unique_results.append(res)
         
-        # Sort by price ascending
         unique_results.sort(key=lambda x: x["price"])
-        
         return unique_results
