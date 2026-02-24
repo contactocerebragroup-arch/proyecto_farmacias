@@ -4,11 +4,8 @@ const api = axios.create({
     baseURL: '/api',
 });
 
-// For production on Vercel, relative path /api works fine.
-// For local dev, we might need a proxy or full URL.
-
-export const fetchPrices = async () => {
-    const response = await api.get('/prices');
+export const fetchPrices = async (params = {}) => {
+    const response = await api.get('/prices', { params });
     return response.data;
 };
 

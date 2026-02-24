@@ -18,31 +18,61 @@ if os.getenv("VERCEL_ENV") != "production":
     models.Base.metadata.create_all(bind=db.engine)
 
 @app.get("/api/prices")
-def get_prices(db: Session = Depends(db.get_db)):
-    prices = db.query(models.Price).order_by(models.Price.timestamp.desc()).limit(100).all()
-    return prices
+def get_prices(
+    db: Session = Depends(db.get_db),
+    page: int = 1,
+    limit: int = 20,
+    pharmacy: str = None,
+    search: str = None,
+    sort: str = "price_asc"
+):
+    query = db.query(models.Price)
+    
+    if pharmacy and pharmacy != "Todas":
+        query = query.filter(models.Price.pharmacy == pharmacy)
+    
+    if search:
+        query = query.filter(models.Price.product.ilike(f"%{search}%"))
+    
+    if sort == "price_asc":
+        query = query.order_by(models.Price.price.asc())
+    elif sort == "price_desc":
+        query = query.order_by(models.Price.price.desc())
+    else:
+        query = query.order_by(models.Price.timestamp.desc())
+
+    total = query.count()
+    prices = query.offset((page - 1) * limit).limit(limit).all()
+    
+    return {
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "results": prices
+    }
 
 @app.post("/api/scrape")
 @limiter.limit("5/minute")
-def trigger_scrape(request: Request, db: Session = Depends(db.get_db), api_key: str = Depends(security.get_api_key)):
+async def trigger_scrape(request: Request, db: Session = Depends(db.get_db), api_key: str = Depends(security.get_api_key)):
     """
-    Triggers the scraping process and stores results in the database.
-    Protected by X-API-Key and Rate Limiting.
+    Triggers the high-performance async scraping process.
     """
-    extracted_data = scraper.scrape_all()
+    extracted_data = await scraper.scrape_all_async()
     
     new_entries = []
     for item in extracted_data:
         price_entry = models.Price(
             pharmacy=item["pharmacy"],
             product=item["product"],
-            price=item["price"]
+            price=item["price"],
+            stock=item["stock"],
+            url=item["url"]
         )
         db.add(price_entry)
         new_entries.append(price_entry)
     
     db.commit()
-    return {"status": "success", "count": len(new_entries)}
+    return {"status": "success", "count": len(new_entries), "scraped_at": str(models.datetime.utcnow())}
 
 @app.get("/api/health")
 def health_check():
