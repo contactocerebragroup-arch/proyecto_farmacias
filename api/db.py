@@ -2,8 +2,13 @@ import os
 from sqlalchemy import create_url, create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# Fallback to local SQLite if DATABASE_URL is not set
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///prices.db")
+# Handle Vercel SQLite path (root is read-only)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    if os.getenv("VERCEL_ENV"):
+        DATABASE_URL = "sqlite:////tmp/prices.db" # 4 slashes for absolute path
+    else:
+        DATABASE_URL = "sqlite:///prices.db"
 
 # Fix for Render/Neon and SQLAlchemy (psycopg2)
 if DATABASE_URL.startswith("postgres://"):

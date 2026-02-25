@@ -1,23 +1,38 @@
 import os
+import httpx
 from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from . import models, db, scraper, security
-from .security import limiter
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from . import models, db, scraper, security
+
+from fastapi import APIRouter
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Comparador de precios Farmacias API")
+
+# Setup CORS just in case, though same-origin on Vercel
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Setup Rate Limiting Error Handler
 app.state.limiter = security.limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Create tables in dev (SQLite)
-# In prod, migrations are recommended, but for this MVP:
-if os.getenv("VERCEL_ENV") != "production":
+# Ensure tables exist (especially in serverless where DB might be fresh)
+try:
     models.Base.metadata.create_all(bind=db.engine)
+except Exception as e:
+    print(f"Database init error: {e}")
 
-@app.get("/api/prices")
+router = APIRouter(prefix="/api")
+
+@router.get("/prices")
 def get_prices(
     db: Session = Depends(db.get_db),
     page: int = 1,
@@ -51,7 +66,7 @@ def get_prices(
         "results": prices
     }
 
-@app.post("/api/scrape-url")
+@router.post("/scrape-url")
 @limiter.limit("5/minute")
 async def trigger_scrape_url(
     request: Request, 
@@ -59,9 +74,6 @@ async def trigger_scrape_url(
     db: Session = Depends(db.get_db), 
     api_key: str = Depends(security.get_api_key)
 ):
-    """
-    Scrapes a specific URL provided in the payload.
-    """
     target_url = payload.get("url")
     if not target_url:
         raise HTTPException(status_code=400, detail="URL is required")
@@ -69,7 +81,6 @@ async def trigger_scrape_url(
     async with httpx.AsyncClient(follow_redirects=True) as client:
         results = await scraper.fetch_manual_url(client, target_url)
     
-    # Store results in background
     for item in results:
         entry = models.Price(
             pharmacy="Manual",
@@ -83,7 +94,7 @@ async def trigger_scrape_url(
     
     return {"status": "success", "results": results}
 
-@app.post("/api/scrape-geo")
+@router.post("/scrape-geo")
 @limiter.limit("5/minute")
 async def trigger_scrape_geo(
     request: Request, 
@@ -91,15 +102,10 @@ async def trigger_scrape_geo(
     db: Session = Depends(db.get_db), 
     api_key: str = Depends(security.get_api_key)
 ):
-    """
-    Scrapes popular sites with geographic context.
-    """
     lat = payload.get("lat")
     lng = payload.get("lng")
-    
     results = await scraper.scrape_geo_async(lat, lng)
     
-    # Store results
     for item in results:
         entry = models.Price(
             pharmacy=item["pharmacy"],
@@ -113,29 +119,9 @@ async def trigger_scrape_geo(
     
     return {"status": "success", "count": len(results)}
 
-@app.post("/api/scrape")
-@limiter.limit("5/minute")
-async def trigger_scrape(request: Request, db: Session = Depends(db.get_db), api_key: str = Depends(security.get_api_key)):
-    """
-    Triggers the high-performance async analysis process.
-    """
-    extracted_data = await scraper.scrape_all_async()
-    
-    new_entries = []
-    for item in extracted_data:
-        price_entry = models.Price(
-            pharmacy=item["pharmacy"],
-            product=item["product"],
-            price=item["price"],
-            stock=item["stock"],
-            url=item["url"]
-        )
-        db.add(price_entry)
-        new_entries.append(price_entry)
-    
-    db.commit()
-    return {"status": "success", "count": len(new_entries), "scraped_at": str(models.datetime.utcnow())}
-
-@app.get("/api/health")
+@router.get("/health")
 def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "db": str(db.engine.url)}
+
+# Include router
+app.include_router(router)
