@@ -19,7 +19,7 @@ if REDIS_URL:
         logger.error("Redis connection failed", error=str(e))
 
 SOURCES = [
-    {"name": "EcoFarmacias", "url": "https://www.ecofarmacias.cl/"},
+    {"name": "Comparador de precios Farmacias", "url": "https://www.ecofarmacias.cl/"},
     {"name": "Farmex", "url": "https://farmex.cl/"},
     {"name": "Meki", "url": "https://farmaciameki.cl/"},
 ]

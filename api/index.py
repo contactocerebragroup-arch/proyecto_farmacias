@@ -6,7 +6,7 @@ from .security import limiter
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-app = FastAPI(title="EcoFarmacias API")
+app = FastAPI(title="Comparador de precios Farmacias API")
 
 # Setup Rate Limiting Error Handler
 app.state.limiter = security.limiter
@@ -117,7 +117,7 @@ async def trigger_scrape_geo(
 @limiter.limit("5/minute")
 async def trigger_scrape(request: Request, db: Session = Depends(db.get_db), api_key: str = Depends(security.get_api_key)):
     """
-    Triggers the high-performance async scraping process.
+    Triggers the high-performance async analysis process.
     """
     extracted_data = await scraper.scrape_all_async()
     

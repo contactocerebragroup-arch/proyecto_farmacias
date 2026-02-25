@@ -32,7 +32,7 @@ const Dashboard = () => {
     const [apiKey, setApiKey] = useState('');
     const [pendingAction, setPendingAction] = useState(null);
 
-    const pharmacies = ['Todas', 'EcoFarmacias', 'Farmex', 'Meki', 'Manual'];
+    const pharmacies = ['Todas', 'Comparador de precios Farmacias', 'Farmex', 'Meki', 'Manual'];
 
     const loadData = useCallback(async () => {
         try {
@@ -77,7 +77,7 @@ const Dashboard = () => {
             setSuccessMsg(`Extracción manual finalizada: ${res.results.length} ítems encontrados.`);
             await loadData();
         } catch (err) {
-            setError('Error en el scraping manual. Verifica la URL.');
+            setError('Error en el análisis manual. Verifica la URL.');
         } finally {
             setScraping(false);
         }
@@ -96,7 +96,7 @@ const Dashboard = () => {
                 setSuccessMsg('Sincronización geolocalizada completada.');
                 await loadData();
             } catch (err) {
-                setError('Error en el scraping geolocalizado.');
+                setError('Error en el análisis geolocalizado.');
             } finally {
                 setScraping(false);
             }
@@ -113,7 +113,7 @@ const Dashboard = () => {
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                 <Typography variant="h4" fontWeight="800" color="primary">
-                    EcoFarmacias <Chip label="v3.0 General" color="secondary" size="small" />
+                    Comparador de precios Farmacias <Chip label="v3.2 ANALIZAR" color="secondary" size="small" />
                 </Typography>
                 <Box>
                     <Button
@@ -132,7 +132,7 @@ const Dashboard = () => {
                         disabled={scraping}
                         sx={{ borderRadius: 2 }}
                     >
-                        {scraping ? 'Sincronizando...' : activeTab === 0 ? 'Scrapear URL' : 'Actualizar Todo'}
+                        {scraping ? 'Analizando...' : activeTab === 0 ? 'Analizar URL' : 'Actualizar Todo'}
                     </Button>
                 </Box>
             </Box>
@@ -145,8 +145,8 @@ const Dashboard = () => {
                     textColor="primary"
                     variant="fullWidth"
                 >
-                    <Tab icon={<LinkIcon />} label="Scraping Manual" sx={{ fontWeight: 'bold' }} />
-                    <Tab icon={<MyLocation />} label="Geolocalización" sx={{ fontWeight: 'bold' }} />
+                    <Tab icon={<LinkIcon />} label="ANALIZAR MANUAL" sx={{ fontWeight: 'bold' }} />
+                    <Tab icon={<MyLocation />} label="ANALIZAR POR ZONA" sx={{ fontWeight: 'bold' }} />
                 </Tabs>
 
                 <Box p={3}>
@@ -171,7 +171,7 @@ const Dashboard = () => {
                                     disabled={scraping}
                                     sx={{ height: '56px', borderRadius: 2 }}
                                 >
-                                    Scrapear Ahora
+                                    Analizar Ahora
                                 </Button>
                             </Grid>
                         </Grid>
@@ -244,7 +244,7 @@ const Dashboard = () => {
                         ) : results.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={5} align="center" sx={{ py: 10 }}>
-                                    <Typography variant="body1" color="text.secondary">Sin datos actuales. Inicia un scraping.</Typography>
+                                    <Typography variant="body1" color="text.secondary">Sin datos actuales. Inicia un análisis.</Typography>
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -292,7 +292,7 @@ const Dashboard = () => {
                 <DialogTitle sx={{ fontWeight: 'bold' }}>Seguridad del Sistema</DialogTitle>
                 <DialogContent>
                     <Typography variant="body2" color="text.secondary" mb={2}>
-                        Ingresa tu `APP_API_KEY` para autorizar operaciones de scraping.
+                        Ingresa tu `APP_API_KEY` para autorizar operaciones de análisis.
                     </Typography>
                     <TextField
                         autoFocus
