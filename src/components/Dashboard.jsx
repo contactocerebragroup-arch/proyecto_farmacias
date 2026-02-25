@@ -2,12 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     Container, Typography, Box, Paper, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, Button, CircularProgress,
-    Alert, TextField, Dialog, DialogTitle, DialogContent, DialogActions,
-    Chip, MenuItem, Select, FormControl, InputLabel, Skeleton, Snackbar,
-    TablePagination, Tabs, Tab, Grid
+    Alert, TextField, Chip, MenuItem, Select, FormControl, InputLabel,
+    Skeleton, Snackbar, TablePagination, Tabs, Tab, Grid
 } from '@mui/material';
 import { Refresh, Search, Language, MyLocation, Link as LinkIcon } from '@mui/icons-material';
-import { fetchPrices, triggerScrape, triggerScrapeUrl, triggerScrapeGeo } from '../api';
+import { fetchPrices, triggerScrapeUrl, triggerScrapeGeo } from '../api';
 
 const Dashboard = () => {
     const [activeTab, setActiveTab] = useState(0);
@@ -26,11 +25,6 @@ const Dashboard = () => {
 
     // Manual Scrape State
     const [manualUrl, setManualUrl] = useState('');
-
-    // Auth
-    const [openAuth, setOpenAuth] = useState(false);
-    const [apiKey, setApiKey] = useState('');
-    const [pendingAction, setPendingAction] = useState(null);
 
     const pharmacies = ['Todas', 'Comparador de precios Farmacias', 'Farmex', 'Meki', 'Manual'];
 
@@ -57,15 +51,6 @@ const Dashboard = () => {
         loadData();
     }, [loadData]);
 
-    const handleActionWithAuth = (action) => {
-        if (!apiKey) {
-            setPendingAction(() => action);
-            setOpenAuth(true);
-        } else {
-            action();
-        }
-    };
-
     const handleManualScrape = async () => {
         if (!manualUrl) {
             setError('Por favor ingresa una URL válida.');
@@ -73,7 +58,7 @@ const Dashboard = () => {
         }
         try {
             setScraping(true);
-            const res = await triggerScrapeUrl(apiKey, manualUrl);
+            const res = await triggerScrapeUrl(manualUrl);
             setSuccessMsg(`Extracción manual finalizada: ${res.results.length} ítems encontrados.`);
             await loadData();
         } catch (err) {
@@ -92,7 +77,7 @@ const Dashboard = () => {
             try {
                 setScraping(true);
                 const { latitude, longitude } = pos.coords;
-                await triggerScrapeGeo(apiKey, latitude, longitude);
+                await triggerScrapeGeo(latitude, longitude);
                 setSuccessMsg('Sincronización geolocalizada completada.');
                 await loadData();
             } catch (err) {
@@ -113,7 +98,7 @@ const Dashboard = () => {
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                 <Typography variant="h4" fontWeight="800" color="primary">
-                    Comparador de precios Farmacias <Chip label="v3.2 ANALIZAR" color="secondary" size="small" />
+                    Comparador de precios Farmacias <Chip label="v3.2.3 ANALIZAR" color="secondary" size="small" />
                 </Typography>
                 <Box>
                     <Button
@@ -128,7 +113,7 @@ const Dashboard = () => {
                     <Button
                         variant="contained"
                         startIcon={scraping ? <CircularProgress size={20} color="inherit" /> : <Refresh />}
-                        onClick={() => handleActionWithAuth(() => activeTab === 0 ? handleManualScrape() : handleGeoScrape())}
+                        onClick={() => activeTab === 0 ? handleManualScrape() : handleGeoScrape()}
                         disabled={scraping}
                         sx={{ borderRadius: 2 }}
                     >
@@ -167,7 +152,7 @@ const Dashboard = () => {
                                     fullWidth
                                     variant="contained"
                                     size="large"
-                                    onClick={() => handleActionWithAuth(handleManualScrape)}
+                                    onClick={handleManualScrape}
                                     disabled={scraping}
                                     sx={{ height: '56px', borderRadius: 2 }}
                                 >
@@ -183,7 +168,7 @@ const Dashboard = () => {
                             <Button
                                 variant="outlined"
                                 startIcon={<MyLocation />}
-                                onClick={() => handleActionWithAuth(handleGeoScrape)}
+                                onClick={handleGeoScrape}
                                 disabled={scraping}
                             >
                                 Scan Mi Zona
@@ -288,27 +273,7 @@ const Dashboard = () => {
                 <Alert onClose={() => setSuccessMsg('')} severity="success" sx={{ width: '100%', borderRadius: 2 }}>{successMsg}</Alert>
             </Snackbar>
 
-            <Dialog open={openAuth} onClose={() => setOpenAuth(false)} PaperProps={{ sx: { borderRadius: 3, p: 1 } }}>
-                <DialogTitle sx={{ fontWeight: 'bold' }}>Seguridad del Sistema</DialogTitle>
-                <DialogContent>
-                    <Typography variant="body2" color="text.secondary" mb={2}>
-                        Ingresa tu `APP_API_KEY` para autorizar operaciones de análisis.
-                    </Typography>
-                    <TextField
-                        autoFocus
-                        fullWidth
-                        type="password"
-                        label="X-API-Key"
-                        variant="filled"
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                    />
-                </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={() => setOpenAuth(false)}>Cancelar</Button>
-                    <Button onClick={() => { setOpenAuth(false); pendingAction?.(); }} variant="contained" sx={{ borderRadius: 2 }}>Autorizar</Button>
-                </DialogActions>
-            </Dialog>
+            {/* Acceso abierto para testing v3.2.3 */}
         </Container>
     );
 };

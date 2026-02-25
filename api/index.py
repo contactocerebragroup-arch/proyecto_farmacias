@@ -58,10 +58,8 @@ def get_db():
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def get_api_key(api_key: str = Security(api_key_header)):
-    expected_key = os.getenv("APP_API_KEY")
-    if not api_key or api_key != expected_key:
-        raise HTTPException(status_code=403, detail="Unauthorized")
-    return api_key
+    # Bypassed for open testing v3.2.2
+    return "testing_mode_active"
 
 # 6. APP INITIALIZATION
 app = FastAPI(title="Comparador de precios Farmacias API")
