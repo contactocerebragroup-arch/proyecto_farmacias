@@ -3,18 +3,18 @@ import sys
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from fastapi import APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
-# Add the current directory to sys.path to resolve relative imports in Vercel
+# Diagnostic: check path
+print(f"DEBUG: sys.path: {sys.path}")
+print(f"DEBUG: cwd: {os.getcwd()}")
+
+# Add the current directory to sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
 
 try:
-    # Use direct imports instead of relative if parent package is undefined
     import models
     import db
     import scraper
@@ -22,12 +22,14 @@ try:
     print("DEBUG: All internal modules imported successfully")
 except Exception as e:
     print(f"DEBUG: Import error: {e}")
-    # Fallback to relative imports
-    from . import models, db, scraper, security
+    # Fallback to local imports if the sys.path didn't work as expected
+    import api.models as models
+    import api.db as db
+    import api.scraper as scraper
+    import api.security as security
 
 app = FastAPI(title="Comparador de precios Farmacias API")
 
-# Setup CORS just in case, though same-origin on Vercel
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,28 +38,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Setup Rate Limiting Error Handler
-app.state.limiter = security.limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-# Ensure tables exist (especially in serverless where DB might be fresh)
+# Ensure tables exist
 try:
     models.Base.metadata.create_all(bind=db.engine)
+    print("DEBUG: Database tables verified/created")
 except Exception as e:
-    print(f"Database init error: {e}")
+    print(f"DEBUG: Database init error: {e}")
 
-router = APIRouter(prefix="/api")
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok", "env": os.getenv("VERCEL_ENV", "local")}
 
-@router.get("/prices")
+@app.get("/api/prices")
 def get_prices(
-    db: Session = Depends(db.get_db),
+    db_session: Session = Depends(db.get_db),
     page: int = 1,
     limit: int = 20,
     pharmacy: str = None,
     search: str = None,
     sort: str = "price_asc"
 ):
-    query = db.query(models.Price)
+    query = db_session.query(models.Price)
     
     if pharmacy and pharmacy != "Todas":
         query = query.filter(models.Price.pharmacy == pharmacy)
@@ -82,19 +83,18 @@ def get_prices(
         "results": prices
     }
 
-@router.post("/scrape-url")
-@limiter.limit("5/minute")
+@app.post("/api/scrape-url")
 async def trigger_scrape_url(
     request: Request, 
     payload: dict, 
-    db: Session = Depends(db.get_db), 
+    db_session: Session = Depends(db.get_db), 
     api_key: str = Depends(security.get_api_key)
 ):
     target_url = payload.get("url")
     if not target_url:
         raise HTTPException(status_code=400, detail="URL is required")
     
-    async with httpx.AsyncClient(follow_redirects=True) as client:
+    async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
         results = await scraper.fetch_manual_url(client, target_url)
     
     for item in results:
@@ -105,17 +105,16 @@ async def trigger_scrape_url(
             stock=item["stock"],
             url=item["url"]
         )
-        db.add(entry)
-    db.commit()
+        db_session.add(entry)
+    db_session.commit()
     
     return {"status": "success", "results": results}
 
-@router.post("/scrape-geo")
-@limiter.limit("5/minute")
+@app.post("/api/scrape-geo")
 async def trigger_scrape_geo(
     request: Request, 
     payload: dict, 
-    db: Session = Depends(db.get_db), 
+    db_session: Session = Depends(db.get_db), 
     api_key: str = Depends(security.get_api_key)
 ):
     lat = payload.get("lat")
@@ -130,14 +129,7 @@ async def trigger_scrape_geo(
             stock=item["stock"],
             url=item["url"]
         )
-        db.add(entry)
-    db.commit()
+        db_session.add(entry)
+    db_session.commit()
     
     return {"status": "success", "count": len(results)}
-
-@router.get("/health")
-def health_check():
-    return {"status": "ok", "db": str(db.engine.url)}
-
-# Include router
-app.include_router(router)
