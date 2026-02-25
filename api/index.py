@@ -1,13 +1,29 @@
 import os
+import sys
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from . import models, db, scraper, security
-
 from fastapi import APIRouter
 from fastapi.middleware.cors import CORSMiddleware
+
+# Add the current directory to sys.path to resolve relative imports in Vercel
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
+
+try:
+    # Use direct imports instead of relative if parent package is undefined
+    import models
+    import db
+    import scraper
+    import security
+    print("DEBUG: All internal modules imported successfully")
+except Exception as e:
+    print(f"DEBUG: Import error: {e}")
+    # Fallback to relative imports
+    from . import models, db, scraper, security
 
 app = FastAPI(title="Comparador de precios Farmacias API")
 

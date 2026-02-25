@@ -4,7 +4,7 @@ import httpx
 import redis
 import structlog
 from bs4 import BeautifulSoup
-from .ai_parser import parse_prices_with_ai
+from ai_parser import parse_prices_with_ai
 
 logger = structlog.get_logger()
 
