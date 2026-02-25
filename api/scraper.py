@@ -134,8 +134,13 @@ async def fetch_manual_url(client, url, retries=3):
                 
             return results
         except Exception as e:
-            await asyncio.sleep(2 ** i)
-    return []
+            last_error = e
+            logger.error("Scrape URL Error", retry=i, error=str(e))
+            if i < retries - 1:
+                await asyncio.sleep(2 ** i)
+    
+    # If we get here, all retries failed
+    raise RuntimeError(f"Scraping failed after {retries} retries: {str(last_error)}")
 
 async def scrape_geo_async(lat, lon):
     """

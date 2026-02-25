@@ -15,8 +15,7 @@ def parse_prices_with_ai(html_content: str):
     Uses Gemini 1.5-flash to extract product prices from HTML.
     """
     if not api_key:
-        logger.error("GEMINI_API_KEY not set")
-        return []
+        raise RuntimeError("GEMINI_API_KEY is not configured in Vercel environment.")
 
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
@@ -35,7 +34,7 @@ def parse_prices_with_ai(html_content: str):
             "\nJSON: [{'producto': 'Ibuprofeno 400mg', 'precio': 2500.0, 'stock': 'Hay stock', 'url': '/p/1'}]"
             "\n\nHTML: <div class='item'><h2>Paracetamol 500mg</h2><div class='val'>$ 1.200</div><p>Agotado</p></div>"
             "\nJSON: [{'producto': 'Paracetamol 500mg', 'precio': 1200.0, 'stock': 'Agotado', 'url': ''}]"
-            "\n\nHTML geolocalizado: Chile. Devuelve SOLO el JSON puro."
+            "\n\nHTML geolocalizado: Chile. Devuelve SOLO el JSON puro (sin formato markdown)."
         )
         
         response = model.generate_content(f"{prompt}\n\nHTML: {html_content[:30000]}")
@@ -45,6 +44,10 @@ def parse_prices_with_ai(html_content: str):
         
         logger.info("Parsed data successfully", count=len(data))
         return data
+    except json.JSONDecodeError as je:
+        logger.error("Error parsing JSON from Gemini", error=str(je), text=response.text)
+        raise RuntimeError(f"AI returned invalid JSON: {response.text[:100]}...")
     except Exception as e:
-        logger.error("Error parsing with Gemini", error=str(e))
-        return []
+        logger.error("Error connecting to Gemini", error=str(e))
+        raise RuntimeError(f"Gemini API Error: {str(e)}")
+

@@ -141,8 +141,12 @@ async def trigger_scrape_url(
     if not target_url:
         raise HTTPException(status_code=400, detail="URL is required")
     
-    async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
-        results = await scraper.fetch_manual_url(client, target_url)
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+            results = await scraper.fetch_manual_url(client, target_url)
+    except Exception as e:
+        # Return error details to frontend for debugging
+        raise HTTPException(status_code=500, detail=str(e))
     
     for item in results:
         entry = Price(
