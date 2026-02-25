@@ -8,9 +8,11 @@ from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
-
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 # 1. SETUP LOGGING
 logger = structlog.get_logger()
 
@@ -39,6 +41,7 @@ class Price(Base):
     stock = Column(String, nullable=True)
     url = Column(String, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    es_oferta = Column(Boolean, default=False, index=True)
 
 # 4. DATABASE INITIALIZATION
 try:
@@ -58,11 +61,18 @@ def get_db():
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def get_api_key(api_key: str = Security(api_key_header)):
-    # Bypassed for open testing v3.2.2
-    return "testing_mode_active"
+    expected_key = os.getenv("APP_API_KEY")
+    if expected_key and (not api_key or api_key != expected_key):
+        raise HTTPException(status_code=403, detail="Unauthorized API Key")
+    return api_key
+
+limiter = Limiter(key_func=get_remote_address)
 
 # 6. APP INITIALIZATION
-app = FastAPI(title="Comparador de precios Farmacias API")
+app = FastAPI(title="WebCheck Farmacias API")
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -125,12 +135,14 @@ def get_prices(
                 "price": p.price,
                 "stock": p.stock,
                 "url": p.url,
-                "timestamp": p.timestamp.isoformat() if p.timestamp else None
+                "timestamp": p.timestamp.isoformat() if p.timestamp else None,
+                "es_oferta": p.es_oferta
             } for p in prices
         ]
     }
 
 @app.post("/api/scrape-url")
+@limiter.limit("5/minute")
 async def trigger_scrape_url(
     request: Request, 
     payload: dict, 
@@ -150,11 +162,12 @@ async def trigger_scrape_url(
     
     for item in results:
         entry = Price(
-            pharmacy="Manual",
+            pharmacy=item.get("pharmacy", "Genius Scraped"),
             product=item["product"],
             price=item["price"],
             stock=item["stock"],
-            url=item["url"]
+            url=item["url"],
+            es_oferta=item.get("es_oferta", False)
         )
         db_session.add(entry)
     db_session.commit()

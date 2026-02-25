@@ -91,27 +91,46 @@ async def fetch_with_retry(client, source, retries=3):
                 logger.error("All retries failed", source=source["name"])
                 return []
 
-async def fetch_manual_url(client, url, retries=3):
+async def fetch_manual_url(url, retries=3):
     """
-    Fetches a specific URL provided by the user and extracts prices.
+    Scraping Genius: Fetches URL using Playwright (stealth, JS rendering) and extracts dynamic prices.
     """
     if cache:
         cached_data = cache.get(f"manual:{url}")
         if cached_data:
             import json
+            logger.info("Cache hit for manual scrape")
             return json.loads(cached_data)
 
     for i in range(retries):
+        p = None
+        browser = None
         try:
-            headers = {
-                "User-Agent": USER_AGENTS[i % len(USER_AGENTS)],
-                "Accept-Language": "es-CL,es;q=0.9",
-            }
-            response = await client.get(url, headers=headers, timeout=12)
-            response.raise_for_status()
+            from playwright.async_api import async_playwright
+            p = await async_playwright().start()
+            # Chromium headless with stealth-like args
+            browser = await p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled'])
+            context = await browser.new_context(
+                user_agent=USER_AGENTS[i % len(USER_AGENTS)],
+                viewport={"width": 1920, "height": 1080},
+                extra_http_headers={"Accept-Language": "es-CL,es;q=0.9"}
+            )
+            page = await context.new_page()
             
-            soup = BeautifulSoup(response.text, "html.parser")
-            html_chunk = str(soup.body)[:28000]
+            # Abort media to save bandwidth/memory and speed up loading
+            await page.route("**/*.{png,jpg,jpeg,gif,svg,css,woff,woff2,ttf,mp4}", lambda route: route.abort())
+            
+            await page.goto(url, wait_until="domcontentloaded", timeout=25000)
+            
+            # Scroll down to trigger lazy loading of dynamic JS products
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight/2)")
+            await asyncio.sleep(1)
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            await asyncio.sleep(2)
+            
+            # Extract large chunk of DOM
+            html_chunk = await page.content()
+            html_chunk = html_chunk[:45000] # Give Gemini more JS-rendered context
             
             extracted = parse_prices_with_ai(html_chunk)
             
@@ -121,16 +140,19 @@ async def fetch_manual_url(client, url, retries=3):
                 price = item.get("precio", 0)
                 if name and price > 0:
                     results.append({
-                        "pharmacy": "Manual Scraped",
+                        "pharmacy": "Genius Scraped",
                         "product": name,
                         "price": float(price),
                         "stock": str(item.get("stock", "N/A")),
-                        "url": url,
+                        "url": str(item.get("url", url)),
+                        "es_oferta": bool(item.get("es_oferta", False))
                     })
             
+            # Sort asc by price and cache
+            results.sort(key=lambda x: x["price"])
             if cache and results:
                 import json
-                cache.setex(f"manual:{url}", 3600, json.dumps(results))
+                cache.setex(f"manual:{url}", 3600, json.dumps(results)) # 1h TTL
                 
             return results
         except Exception as e:
@@ -138,9 +160,11 @@ async def fetch_manual_url(client, url, retries=3):
             logger.error("Scrape URL Error", retry=i, error=str(e))
             if i < retries - 1:
                 await asyncio.sleep(2 ** i)
+        finally:
+            if browser: await browser.close()
+            if p: await p.stop()
     
-    # If we get here, all retries failed
-    raise RuntimeError(f"Scraping failed after {retries} retries: {str(last_error)}")
+    raise RuntimeError(f"Playwright scraping failed after {retries} retries: {str(last_error)}")
 
 async def scrape_geo_async(lat, lon):
     """
